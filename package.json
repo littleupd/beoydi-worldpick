@@ -1,0 +1,33 @@
+{
+  "name": "beoydi-worldpick",
+  "version": "1.0.0",
+  "description": "Offline-data random world city picker, built for mobile Safari",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs public",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs dist",
+    "test": "playwright test",
+    "data:import": "node scripts/import-cities.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleupd/beoydi-worldpick.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/littleupd/beoydi-worldpick/issues"
+  },
+  "homepage": "https://github.com/littleupd/beoydi-worldpick#readme",
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "all-the-cities": "3.1.0"
+  },
+  "private": true
+}

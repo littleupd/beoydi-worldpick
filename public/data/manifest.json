@@ -1,0 +1,16 @@
+{
+  "count": 135233,
+  "schema": [
+    "geonameId",
+    "name",
+    "countryCode",
+    "longitude",
+    "latitude"
+  ],
+  "source": "GeoNames cities1000 via all-the-cities@3.1.0",
+  "sourceUrl": "https://www.geonames.org/",
+  "packageVersion": "3.1.0",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "sha256": "1a9517278508c30b1a54eac70f304900b32c7108ad53c18a22ce135c9166a956"
+}

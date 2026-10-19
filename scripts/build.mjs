@@ -1,0 +1,11 @@
+import { cp, mkdir, rm, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+const data = await readFile('public/data/cities.json');
+const manifest = JSON.parse(await readFile('public/data/manifest.json', 'utf8'));
+const cities = JSON.parse(data);
+if (createHash('sha256').update(data).digest('hex') !== manifest.sha256 || cities.length !== manifest.count || new Set(cities.map(c => c[0])).size !== cities.length) throw Error('City snapshot integrity check failed');
+if (cities.some(c => !Number.isInteger(c[0]) || !c[1] || !/^[A-Z]{2}$/.test(c[2]) || !Number.isFinite(c[3]) || Math.abs(c[3]) > 180 || !Number.isFinite(c[4]) || Math.abs(c[4]) > 90)) throw Error('Invalid city record');
+await rm('dist', { recursive: true, force: true });
+await mkdir('dist', { recursive: true });
+await cp('public', 'dist', { recursive: true });
+console.log(`Built static site; verified ${cities.length} unique GeoNames cities and SHA-256.`);
