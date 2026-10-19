@@ -13,13 +13,14 @@ const coordinates = city => `${Math.abs(city[4]).toFixed(3)}° ${city[4] < 0 ? '
 function setState(next) {
   state = next;
   document.querySelector('.picker').classList.toggle('is-spinning', next === 'spinning');
-  const labels = { loading: ['PREPARING', '↗', 'LOADING'], ready: ['START', '↗', 'READY TO EXPLORE'], spinning: ['STOP', '■', 'EXPLORING'], saving: ['SAVING', '…', 'SAVING'], result: ['NEXT TRIP', '↗', 'DESTINATION FOUND'], exhausted: ['ALL EXPLORED', '✓', 'COMPLETE'], error: ['PAUSED', '↗', 'PLEASE RETRY'] };
+  const labels = { loading: ['준비 중', '↗', '준비 중'], ready: ['START', '↗', '준비 완료'], spinning: ['STOP', '■', '뽑는 중'], saving: ['저장 중', '…', '저장 중'], result: ['다음 여행 START', '↗', '여행지 확정!'], exhausted: ['모두 뽑았어요', '✓', '추첨 완료'], error: ['잠시 멈춤', '↗', '확인이 필요해요'] };
   const [label, icon, badge] = labels[next];
+  $('result-comment').hidden = next !== 'result';
   elements['button-label'].textContent = label;
   elements['button-icon'].textContent = icon;
   elements['status-badge'].textContent = badge;
   elements['pick-button'].disabled = !['ready', 'spinning', 'result'].includes(next);
-  elements['pick-button'].setAttribute('aria-label', next === 'spinning' ? 'STOP: 현재 도시를 여행지로 확정' : next === 'result' ? 'NEXT TRIP: 다음 여행지 추첨 시작' : 'START: 여행지 추첨 시작');
+  elements['pick-button'].setAttribute('aria-label', next === 'spinning' ? 'STOP: 현재 도시를 여행지로 확정' : next === 'result' ? '다음 여행 START: 새로운 여행지 추첨 시작' : 'START: 여행지 추첨 시작');
 }
 
 function showCity(city) {
@@ -59,9 +60,9 @@ async function refresh() {
 function exhausted() {
   cancelAnimationFrame(frame);
   setState('exhausted');
-  elements['city-name'].textContent = '세계를 모두 만났어요!';
-  elements.country.textContent = '모든 도시가 나의 여행 좌표에 저장되었어요.';
-  elements.coordinates.textContent = 'EVERY CITY, A NEW STORY.';
+  elements['city-name'].textContent = '모든 도시를 뽑았어요!';
+  elements.country.textContent = '모든 도시가 비여디의 여행 기록에 저장되었어요.';
+  elements.coordinates.textContent = '남은 도시가 없어요.';
   elements.announcement.textContent = '모든 도시를 추첨했어요. 더 이상 남은 도시가 없습니다.';
 }
 
@@ -101,10 +102,10 @@ async function initialize() {
     document.querySelector('.world-stats>div:last-child>span').textContent = '개 국가 · 지역';
     if (pool.length) {
       setState('ready');
-      elements['destination-kicker'].textContent = 'YOUR NEXT CHAPTER';
-      elements['city-name'].textContent = '어디로 떠나볼까요?';
-      elements.country.textContent = '당신이 멈추는 곳에서, 새로운 여행이 시작돼요.';
-      elements.coordinates.textContent = 'NO PLANS. JUST POSSIBILITIES.';
+      elements['destination-kicker'].textContent = 'START를 눌러 시작해요';
+      elements['city-name'].textContent = '어디가 나올까요?';
+      elements.country.textContent = '135,233개 도시 중 한 곳을 뽑아요';
+      elements.coordinates.textContent = '확정된 도시는 자동으로 저장돼요';
       elements.announcement.textContent = `${cities.length.toLocaleString()}개 도시 준비 완료. START 버튼으로 시작하세요.`;
     }
   } catch (e) {
@@ -127,7 +128,7 @@ function start() {
   if (!pool.length) { exhausted(); return; }
   elements['error-box'].hidden = true;
   setState('spinning');
-  elements['destination-kicker'].textContent = 'TRUST YOUR TIMING';
+  elements['destination-kicker'].textContent = 'STOP을 눌러 확정해요';
   showCity(pool[randomIndex(pool.length)]);
   lastFrame = performance.now();
   elements.announcement.textContent = '도시가 돌아가고 있어요. STOP을 눌러 현재 도시를 확정하세요.';
@@ -145,7 +146,7 @@ async function stop() {
         showCity(candidate);
         await refresh();
         setState('result');
-        elements['destination-kicker'].textContent = 'THIS IS YOUR SIGN TO GO';
+        elements['destination-kicker'].textContent = '오늘의 여행지';
         elements.announcement.textContent = `여행지 확정! ${countryName(candidate[2])}, ${candidate[1]}. 기록에 저장했어요.`;
         channel?.postMessage({ type: 'draw' });
         return;

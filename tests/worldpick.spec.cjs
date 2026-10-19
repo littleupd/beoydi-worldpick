@@ -10,7 +10,7 @@ async function draw(page) {
   await page.waitForTimeout(180);
   const displayed = await page.locator('#city-name').textContent();
   await page.locator('#pick-button').click();
-  await expect(page.locator('#button-label')).toHaveText('NEXT TRIP');
+  await expect(page.locator('#button-label')).toHaveText('다음 여행 START');
   return displayed;
 }
 async function records(page) {
@@ -49,7 +49,7 @@ test('stopping commits the currently displayed city', async ({ page }) => {
     document.querySelector('#pick-button').click();
     return name;
   });
-  await expect(page.locator('#button-label')).toHaveText('NEXT TRIP');
+  await expect(page.locator('#button-label')).toHaveText('다음 여행 START');
   await expect(page.locator('#city-name')).toHaveText(city);
   expect((await records(page))[0].city[1]).toBe(city);
 });
@@ -58,7 +58,7 @@ test('failed city request offers retry, never an endless loader', async ({ page 
   await page.route('**/data/cities.json', route => route.fulfill({ status: 503, body: 'offline' }));
   await page.goto('./');
   await expect(page.locator('#error-box')).toBeVisible();
-  await expect(page.locator('#button-label')).toHaveText('PAUSED');
+  await expect(page.locator('#button-label')).toHaveText('잠시 멈춤');
   await page.unroute('**/data/cities.json');
   await page.locator('#retry-button').click();
   await expect(page.locator('#button-label')).toHaveText('START');
@@ -114,7 +114,7 @@ test('last remaining city is drawn once and exhaustion disables further draws', 
   await draw(page);
   await expect(page.locator('#remaining-count')).toHaveText('0');
   await page.locator('#pick-button').click();
-  await expect(page.locator('#button-label')).toHaveText('ALL EXPLORED');
+  await expect(page.locator('#button-label')).toHaveText('모두 뽑았어요');
   await expect(page.locator('#pick-button')).toBeDisabled();
 });
 
@@ -140,7 +140,7 @@ test('a stalled city download times out with a retry button', async ({ page }) =
   await page.route('**/data/cities.json', () => {});
   await page.goto('./');
   await expect(page.locator('#error-box')).toBeVisible({ timeout: 25000 });
-  await expect(page.locator('#button-label')).toHaveText('PAUSED');
+  await expect(page.locator('#button-label')).toHaveText('잠시 멈춤');
   await expect(page.locator('#retry-button')).toBeEnabled();
 });
 
