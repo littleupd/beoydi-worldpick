@@ -6,3 +6,4 @@
 .picker.is-result .city-name{animation:city-result-reveal .6s cubic-bezier(.2,.7,.2,1);transform-origin:center}
 @keyframes city-result-reveal{0%{transform:scale(.9)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.picker.is-result .city-name{animation:none}}
+.history-actions{display:flex;justify-content:flex-end;margin-top:12px}.reset-history{background:#fff7f8;color:#9a4a64;border:1px solid #eacdd5;border-radius:9px;padding:10px 14px;min-height:44px;font-size:11px;cursor:pointer}.reset-history:hover:enabled{background:#fce7ed}.reset-history:disabled{cursor:default}

@@ -1,9 +1,10 @@
 import { TravelStore, randomIndex } from './store.js';
 import { loadPools, pickCity } from './pick.js';
+import { clearHistory } from './reset.js';
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['pick-button', 'button-label', 'button-icon', 'city-name', 'country', 'coordinates', 'destination-kicker', 'status-badge', 'announcement', 'error-box', 'error-message', 'retry-button', 'history-list', 'history-empty', 'history-count', 'remaining-count', 'more-history'].map(id => [id, $(id)]));
-let pools, cities = [], pool = [], history = [], store, state = 'loading', frame, lastFrame = 0, shown = 12, initializing = false, finishSettling;
+let pools, cities = [], pool = [], history = [], store, state = 'loading', frame, lastFrame = 0, shown = 12, initializing = false, finishSettling, generation = 0;
 const countries = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['ko'], { type: 'region' }) : null;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('worldpick-draws') : null;
@@ -24,6 +25,7 @@ function setState(next) {
   elements['button-icon'].textContent = icon;
   elements['status-badge'].textContent = badge;
   elements['pick-button'].disabled = !['ready', 'spinning', 'result'].includes(next);
+  $('reset-history').disabled = !history.length || !['ready', 'result', 'exhausted'].includes(next);
   elements['pick-button'].setAttribute('aria-label', next === 'spinning' ? 'STOP: 여행지를 확정' : next === 'result' ? '다음 여행 START: 새로운 여행지 추첨 시작' : 'START: 여행지 추첨 시작');
 }
 
@@ -39,6 +41,7 @@ function renderHistory() {
   elements['remaining-count'].textContent = pool.length.toLocaleString('en-US');
   elements['history-empty'].hidden = history.length > 0;
   elements['more-history'].hidden = sorted.length <= shown;
+  $('reset-history').disabled = !history.length || !['ready', 'result', 'exhausted'].includes(state);
   elements['history-list'].replaceChildren(...sorted.slice(0, shown).map((record, i) => {
     const li = document.createElement('li');
     const number = document.createElement('span'); number.className = 'history-number'; number.textContent = String(history.length - i).padStart(2, '0');
@@ -162,8 +165,8 @@ function settle() {
   });
 }
 
-async function claimWeightedCity() {
-  while (true) {
+async function claimWeightedCity(token) {
+  while (token === generation) {
     const picked = pickCity(pools, history.map(record => record.id));
     if (!picked) return null;
     const candidate = storedCity(picked);
@@ -175,25 +178,45 @@ async function claimWeightedCity() {
 }
 
 async function stop() {
+  const token = generation;
   cancelAnimationFrame(frame);
   setState('settling'); // Disable repeated clicks immediately, including on iOS.
   const animation = settle();
   try {
-    const candidate = await claimWeightedCity();
+    const candidate = await claimWeightedCity(token);
     await animation;
+    if (token !== generation) return;
     if (!candidate) { exhausted(); return; }
     showCity(candidate);
     await refresh();
+    if (token !== generation) return;
     setState('result');
     elements['destination-kicker'].textContent = '오늘의 여행지';
     elements.announcement.textContent = `여행지 확정! ${countryName(candidate[2])}, ${candidate[1]}. 기록에 저장했어요.`;
     channel?.postMessage({ type: 'draw' });
   } catch {
+    if (token !== generation) return;
     finishSettling?.();
     store?.db?.close(); store = undefined;
     elements['city-name'].textContent = '기록을 확인해 주세요';
     elements.country.textContent = '저장이 확인될 때까지 새로운 추첨을 진행하지 않아요.';
     error('여행 기록 저장을 확인하지 못했어요. 저장 공간과 사이트 데이터 설정을 확인하고 다시 시도해 주세요.');
+  }
+}
+
+async function resetHistory() {
+  if (!store || !history.length || !['ready', 'result', 'exhausted'].includes(state)) return;
+  if (!window.confirm('이 브라우저의 여행 기록을 모두 지울까요?\n초기화하면 모든 도시를 다시 뽑을 수 있어요. 이 작업은 되돌릴 수 없어요.')) return;
+  generation++;
+  setState('loading');
+  try {
+    await clearHistory(store.db);
+    shown = 12;
+    channel?.postMessage({ type: 'reset' });
+    await initialize();
+    elements.announcement.textContent = '여행 기록을 초기화했어요. 모든 도시를 다시 뽑을 수 있어요.';
+  } catch {
+    error('여행 기록을 초기화하지 못했어요. 저장 공간과 사이트 데이터 설정을 확인하고 다시 시도해 주세요.');
   }
 }
 
@@ -203,7 +226,18 @@ elements['pick-button'].addEventListener('click', () => {
 });
 elements['retry-button'].addEventListener('click', () => void initialize());
 elements['more-history'].addEventListener('click', () => { shown += 12; renderHistory(); });
-channel?.addEventListener('message', () => { if (store && cities.length && state !== 'saving') refresh().catch(() => error('다른 탭의 기록을 읽지 못했어요. 다시 시도해 주세요.')); });
+$('reset-history').addEventListener('click', () => void resetHistory());
+channel?.addEventListener('message', event => {
+  if (event.data?.type === 'reset') {
+    generation++;
+    cancelAnimationFrame(frame);
+    finishSettling?.();
+    shown = 12;
+    void initialize();
+  } else if (store && cities.length && state !== 'saving') {
+    refresh().catch(() => error('다른 탭의 기록을 읽지 못했어요. 다시 시도해 주세요.'));
+  }
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) finishSettling?.();
   if (document.visibilityState === 'visible' && store && cities.length && !['loading', 'saving', 'settling', 'error'].includes(state)) refresh().catch(() => error('여행 기록을 확인하지 못했어요. 다시 시도해 주세요.'));

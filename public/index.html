@@ -7,8 +7,8 @@
   <meta name="description" content="싱글벙글 비여디의 랜덤 지구뽑기 여행기. START를 누르면 도시가 돌아가요. STOP을 누르는 순간 오늘의 여행지 확정!">
   <title>싱글벙글 비여디의 랜덤 지구뽑기 여행기</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="stylesheet" href="./style.css?v=pools-1">
-  <script type="module" src="./app.js?v=pools-1"></script>
+  <link rel="stylesheet" href="./style.css?v=reset-1">
+  <script type="module" src="./app.js?v=reset-1"></script>
 </head>
 <body>
   <div class="shell">
@@ -51,6 +51,7 @@
         <div id="history-empty" class="history-empty"><span class="empty-icon" aria-hidden="true">♡</span><div><p>아직 뽑은 여행지가 없어요</p><span>START를 눌러 첫 번째 여행지를 뽑아보세요.</span></div></div>
         <ol id="history-list" class="history-list"></ol>
         <button id="more-history" class="more-history" hidden>이전 기록 더 보기 ↓</button>
+        <div class="history-actions"><button id="reset-history" class="reset-history" type="button" disabled>여행 기록 초기화</button></div>
         <p class="storage-note" id="storage-note">한 번 뽑힌 도시는 다음 추첨에서 제외돼요.<br>기록은 이 브라우저에 저장돼요. 다른 기기와 공유되지 않으며, 브라우저 데이터 삭제·비공개 모드 종료 시 사라질 수 있어요.</p>
       </section>
     </main>
