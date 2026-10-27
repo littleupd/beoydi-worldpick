@@ -1,30 +1,33 @@
 import { TravelStore, randomIndex } from './store.js';
+import { loadPools, pickCity } from './pick.js';
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['pick-button', 'button-label', 'button-icon', 'city-name', 'country', 'coordinates', 'destination-kicker', 'status-badge', 'announcement', 'error-box', 'error-message', 'retry-button', 'history-list', 'history-empty', 'history-count', 'remaining-count', 'more-history'].map(id => [id, $(id)]));
-let cities = [], pool = [], history = [], store, state = 'loading', current, frame, lastFrame = 0, shown = 12, initializing = false;
+let pools, cities = [], pool = [], history = [], store, state = 'loading', frame, lastFrame = 0, shown = 12, initializing = false, finishSettling;
 const countries = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['ko'], { type: 'region' }) : null;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('worldpick-draws') : null;
 const countryName = code => countries?.of(code) || code;
 const flag = code => String.fromCodePoint(...[...code].map(c => 127397 + c.charCodeAt(0)));
 const coordinates = city => `${Math.abs(city[4]).toFixed(3)}° ${city[4] < 0 ? 'S' : 'N'}  /  ${Math.abs(city[3]).toFixed(3)}° ${city[3] < 0 ? 'W' : 'E'}`;
+// Keep the original IndexedDB record shape and longitude/latitude ordering.
+const storedCity = city => [city.id, city.name, city.cc, city.lon, city.lat];
 
 function setState(next) {
   state = next;
-  document.querySelector('.picker').classList.toggle('is-spinning', next === 'spinning');
-  const labels = { loading: ['준비 중', '↗', '준비 중'], ready: ['START', '↗', '준비 완료'], spinning: ['STOP', '■', '뽑는 중'], saving: ['저장 중', '…', '저장 중'], result: ['다음 여행 START', '↗', '여행지 확정!'], exhausted: ['모두 뽑았어요', '✓', '추첨 완료'], error: ['잠시 멈춤', '↗', '확인이 필요해요'] };
+  document.querySelector('.picker').classList.toggle('is-spinning', ['spinning', 'settling'].includes(next));
+  document.querySelector('.picker').classList.toggle('is-result', next === 'result');
+  const labels = { loading: ['준비 중', '↗', '준비 중'], ready: ['START', '↗', '준비 완료'], spinning: ['STOP', '■', '뽑는 중'], settling: ['STOP', '■', '뽑는 중'], saving: ['저장 중', '…', '저장 중'], result: ['다음 여행 START', '↗', '여행지 확정!'], exhausted: ['모두 뽑았어요', '✓', '추첨 완료'], error: ['잠시 멈춤', '↗', '확인이 필요해요'] };
   const [label, icon, badge] = labels[next];
   $('result-comment').hidden = next !== 'result';
   elements['button-label'].textContent = label;
   elements['button-icon'].textContent = icon;
   elements['status-badge'].textContent = badge;
   elements['pick-button'].disabled = !['ready', 'spinning', 'result'].includes(next);
-  elements['pick-button'].setAttribute('aria-label', next === 'spinning' ? 'STOP: 현재 도시를 여행지로 확정' : next === 'result' ? '다음 여행 START: 새로운 여행지 추첨 시작' : 'START: 여행지 추첨 시작');
+  elements['pick-button'].setAttribute('aria-label', next === 'spinning' ? 'STOP: 여행지를 확정' : next === 'result' ? '다음 여행 START: 새로운 여행지 추첨 시작' : 'START: 여행지 추첨 시작');
 }
 
 function showCity(city) {
-  current = city;
   elements['city-name'].textContent = city[1];
   elements.country.textContent = `${flag(city[2])}  ${countryName(city[2])} · ${city[2]}`;
   elements.coordinates.textContent = coordinates(city);
@@ -51,14 +54,15 @@ function renderHistory() {
 
 async function refresh() {
   history = await store.all();
-  const used = new Set(history.map(record => record.id));
+  const used = new Set(history.map(record => Number(record.id)));
   pool = cities.filter(city => !used.has(city[0]));
   renderHistory();
-  if (!pool.length && state !== 'saving') exhausted();
+  if (!pool.length && !['saving', 'settling'].includes(state)) exhausted();
 }
 
 function exhausted() {
   cancelAnimationFrame(frame);
+  finishSettling?.();
   setState('exhausted');
   elements['city-name'].textContent = '모든 도시를 뽑았어요!';
   elements.country.textContent = '모든 도시가 비여디의 여행 기록에 저장되었어요.';
@@ -68,6 +72,7 @@ function exhausted() {
 
 function error(message) {
   cancelAnimationFrame(frame);
+  finishSettling?.();
   setState('error');
   elements['error-box'].hidden = false;
   elements['error-message'].textContent = message;
@@ -80,15 +85,12 @@ async function initialize() {
   elements['error-box'].hidden = true;
   setState('loading');
   try {
-    if (!cities.length) {
+    if (!pools) {
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), 20000);
       try {
-        const response = await fetch(new URL('./data/cities.json', import.meta.url), { signal: abort.signal });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (!Array.isArray(data) || data.length !== 135233 || new Set(data.map(c => c[0])).size !== data.length || data.some(c => !Array.isArray(c) || c.length !== 5 || !Number.isInteger(c[0]) || typeof c[1] !== 'string' || !/^[A-Z]{2}$/.test(c[2]) || !Number.isFinite(c[3]) || Math.abs(c[3]) > 180 || !Number.isFinite(c[4]) || Math.abs(c[4]) > 90)) throw new Error('Invalid city data');
-        cities = data;
+        pools = await loadPools(new URL('./data/pools.json', import.meta.url), { signal: abort.signal });
+        cities = Object.values(pools).flat().map(city => [city[0], city[1], city[2], city[5], city[4]]);
       } catch { throw new Error('도시 목록을 불러오지 못했어요. 연결을 확인하고 다시 시도해 주세요.'); }
       finally { clearTimeout(timer); }
     }
@@ -104,7 +106,7 @@ async function initialize() {
       setState('ready');
       elements['destination-kicker'].textContent = 'START를 눌러 시작해요';
       elements['city-name'].textContent = '어디가 나올까요?';
-      elements.country.textContent = '135,233개 도시 중 한 곳을 뽑아요';
+      elements.country.textContent = `${cities.length.toLocaleString('en-US')}개 도시 중 한 곳을 뽑아요`;
       elements.coordinates.textContent = '확정된 도시는 자동으로 저장돼요';
       elements.announcement.textContent = `${cities.length.toLocaleString()}개 도시 준비 완료. START 버튼으로 시작하세요.`;
     }
@@ -131,32 +133,63 @@ function start() {
   elements['destination-kicker'].textContent = 'STOP을 눌러 확정해요';
   showCity(pool[randomIndex(pool.length)]);
   lastFrame = performance.now();
-  elements.announcement.textContent = '도시가 돌아가고 있어요. STOP을 눌러 현재 도시를 확정하세요.';
+  elements.announcement.textContent = '도시가 돌아가고 있어요. STOP을 눌러 여행지를 확정하세요.';
   frame = requestAnimationFrame(tick);
 }
 
-async function stop() {
-  // Stop the visual loop immediately; announce a result only after durable storage commits.
-  cancelAnimationFrame(frame);
-  setState('saving');
-  try {
-    let candidate = current;
-    while (candidate) {
-      if (await store.claim(candidate)) {
-        showCity(candidate);
-        await refresh();
-        setState('result');
-        elements['destination-kicker'].textContent = '오늘의 여행지';
-        elements.announcement.textContent = `여행지 확정! ${countryName(candidate[2])}, ${candidate[1]}. 기록에 저장했어요.`;
-        channel?.postMessage({ type: 'draw' });
-        return;
+function settle() {
+  // Display-only names slow from ~75ms to ~400ms. The animation cannot change
+  // the weighted result; that city is selected and claimed separately at STOP.
+  if (reducedMotion.matches || document.hidden) return Promise.resolve();
+  return new Promise(resolve => {
+    const started = performance.now();
+    let changed = started;
+    finishSettling = () => {
+      cancelAnimationFrame(frame);
+      finishSettling = undefined;
+      resolve();
+    };
+    const step = now => {
+      const progress = Math.min((now - started) / 1600, 1);
+      if (now - changed >= 75 + 325 * progress * progress && pool.length) {
+        showCity(pool[randomIndex(pool.length)]);
+        changed = now;
       }
-      // Another tab claimed the same city. Refresh from the authoritative database and retry.
-      await refresh();
-      candidate = pool.length ? pool[randomIndex(pool.length)] : null;
-    }
-    exhausted();
+      if (progress === 1) finishSettling();
+      else frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+  });
+}
+
+async function claimWeightedCity() {
+  while (true) {
+    const picked = pickCity(pools, history.map(record => record.id));
+    if (!picked) return null;
+    const candidate = storedCity(picked);
+    if (await store.claim(candidate)) return candidate;
+    // An atomic claim lost to another tab: refresh all drawn IDs, then run the
+    // same weighted picker again, including reweighting any depleted tier.
+    await refresh();
+  }
+}
+
+async function stop() {
+  cancelAnimationFrame(frame);
+  setState('settling'); // Disable repeated clicks immediately, including on iOS.
+  const animation = settle();
+  try {
+    const candidate = await claimWeightedCity();
+    await animation;
+    if (!candidate) { exhausted(); return; }
+    showCity(candidate);
+    await refresh();
+    setState('result');
+    elements['destination-kicker'].textContent = '오늘의 여행지';
+    elements.announcement.textContent = `여행지 확정! ${countryName(candidate[2])}, ${candidate[1]}. 기록에 저장했어요.`;
+    channel?.postMessage({ type: 'draw' });
   } catch {
+    finishSettling?.();
     store?.db?.close(); store = undefined;
     elements['city-name'].textContent = '기록을 확인해 주세요';
     elements.country.textContent = '저장이 확인될 때까지 새로운 추첨을 진행하지 않아요.';
@@ -172,7 +205,8 @@ elements['retry-button'].addEventListener('click', () => void initialize());
 elements['more-history'].addEventListener('click', () => { shown += 12; renderHistory(); });
 channel?.addEventListener('message', () => { if (store && cities.length && state !== 'saving') refresh().catch(() => error('다른 탭의 기록을 읽지 못했어요. 다시 시도해 주세요.')); });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && store && cities.length && !['loading', 'saving', 'error'].includes(state)) refresh().catch(() => error('여행 기록을 확인하지 못했어요. 다시 시도해 주세요.'));
+  if (document.hidden) finishSettling?.();
+  if (document.visibilityState === 'visible' && store && cities.length && !['loading', 'saving', 'settling', 'error'].includes(state)) refresh().catch(() => error('여행 기록을 확인하지 못했어요. 다시 시도해 주세요.'));
 });
 window.addEventListener('pageshow', event => { if (event.persisted && store) refresh().catch(() => error('여행 기록을 확인하지 못했어요. 다시 시도해 주세요.')); });
 void initialize();

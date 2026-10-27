@@ -39,3 +39,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+The weighted picker uses pools.json, a 24,030-city subset of the same snapshot.
+Classification follows the user-supplied scripts/build_pools.py.
+Pool fields: [geonameId, name, countryCode, admin1, latitude, longitude, population].
+Names use the source package display names; coordinates are rounded to 3 decimals.
+The original full cities.json snapshot is retained.

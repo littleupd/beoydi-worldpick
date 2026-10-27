@@ -1,0 +1,23 @@
+{
+  "source": "GeoNames cities1000 via all-the-cities@3.1.0",
+  "sourceCount": 135233,
+  "classifier": "scripts/build_pools.py (user supplied)",
+  "sourceNameField": "Original display name; this package has no separate GeoNames ASCII-name field",
+  "schema": [
+    "geonameId",
+    "name",
+    "countryCode",
+    "admin1",
+    "latitude",
+    "longitude",
+    "population"
+  ],
+  "counts": {
+    "famous": 88,
+    "mid": 8449,
+    "small": 14951,
+    "danger": 542
+  },
+  "count": 24030,
+  "sha256": "03b8ef3b522aa7adc9c8933496ddbeb443e69f23cafaf04c106fd812d3f34f79"
+}
